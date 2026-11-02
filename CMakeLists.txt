@@ -15,6 +15,10 @@ cmake_minimum_required(VERSION 3.22)
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.9" CACHE STRING "Minimum macOS version")
 # Mavericks-era Macs are all Intel. arm64 cannot target anything below 11.0.
 set(CMAKE_OSX_ARCHITECTURES "x86_64" CACHE STRING "macOS architectures")
+# JUCE builds its "juceaide" helper in a separate CMake run that does not see
+# the cache variable above. Without this it targets the build machine's macOS
+# (15+), where JUCE 7 no longer compiles (CGWindowListCreateImage obsoleted).
+set(ENV{MACOSX_DEPLOYMENT_TARGET} "${CMAKE_OSX_DEPLOYMENT_TARGET}")
 
 project(AmiSampler VERSION 0.7.2 LANGUAGES C CXX)
 
