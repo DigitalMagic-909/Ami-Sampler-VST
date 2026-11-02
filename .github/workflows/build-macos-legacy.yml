@@ -1,0 +1,54 @@
+name: macOS build (10.9 Mavericks and newer)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select newest Xcode 16
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_16*.app | sort -V | tail -1)
+          echo "Using $XCODE"
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Configure
+        run: cmake -B build -DCMAKE_BUILD_TYPE=Release -DCMAKE_OSX_DEPLOYMENT_TARGET=10.9 -DCMAKE_OSX_ARCHITECTURES=x86_64
+
+      - name: Build
+        run: cmake --build build --config Release -j 4
+
+      - name: Check minimum macOS version of the binaries
+        run: |
+          ART="build/AmiSampler_artefacts/Release"
+          for BIN in \
+            "$ART/VST3/Ami Sampler.vst3/Contents/MacOS/Ami Sampler" \
+            "$ART/AU/Ami Sampler.component/Contents/MacOS/Ami Sampler" \
+            "$ART/Standalone/Ami Sampler.app/Contents/MacOS/Ami Sampler"; do
+            echo "== $BIN"
+            lipo -info "$BIN"
+            otool -l "$BIN" | grep -A4 -E "LC_VERSION_MIN_MACOSX|LC_BUILD_VERSION"
+            # Fail if the binary claims to need anything newer than 10.9
+            otool -l "$BIN" | grep -E "^ +(version|minos) 10\.9$" \
+              || { echo "Minimum macOS is not 10.9"; exit 1; }
+          done
+
+      - name: Package
+        run: |
+          ART="build/AmiSampler_artefacts/Release"
+          mkdir -p dist
+          cp -R "$ART/VST3/Ami Sampler.vst3" dist/
+          cp -R "$ART/AU/Ami Sampler.component" dist/
+          cp -R "$ART/Standalone/Ami Sampler.app" dist/
+          cp INSTALL-macOS-10.9.txt dist/ 2>/dev/null || true
+          cd dist && ditto -c -k --keepParent . "../AmiSampler-macOS-10.9-x86_64.zip"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: AmiSampler-macOS-10.9-x86_64
+          path: AmiSampler-macOS-10.9-x86_64.zip
